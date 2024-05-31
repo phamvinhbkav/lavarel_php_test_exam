@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Values.deployment.name}}
+  namespace: dev
+spec:
+  revisionHistoryLimit: 5
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{.Values.deployment.name}}
+  template:
+    metadata:
+      labels:
+        app: {{.Values.deployment.name}} 
+    spec:
+      containers:
+      - name: app
+        imagePullPolicy: Always
+        image: {{.Values.deployment.image.repositoryUrl}}/{{.Values.deployment.image.name}}:{{.Values.deployment.image.tag}}
+        ports:
+          - containerPort: 9000
+            protocol: TCP
+            name: http
+        resources:
+          requests:
+            memory: "100Mi"
+            cpu: "50m"
+          limits:
+            memory: "400Mi"
+            cpu: "250m"
+      imagePullSecrets:
+        - name: {{.value.deployment.image.pullSecret}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{.Values.service.name}}
+  namespace: {{.Values.namespace}}
+spec:
+  ports:
+    - port: 8080
+      targetPort: 80
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: {{.Values.deployment.name}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{.Values.configMap}}
+  namespace: dev
+data:
+  SERVICE_NAME: "app"
+  SERVICE_TAGS: "dev"
+  K8S_MESSAGE: "Hello from K8S"
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{.Values.ingress.name}}
+  annotations:
+    ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - http:
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: {{.Values.service.name}}
+              port:
+                number: 80

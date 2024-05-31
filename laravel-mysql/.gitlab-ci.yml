@@ -1,0 +1,51 @@
+image: php:7.4-fpm
+stages:
+- test
+- build
+- deploy
+
+variables:
+  CONTAINER_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+
+include:
+  - template: Jobs/Container-Scanning.gitlab-ci.yml
+  - template: Jobs/SAST.gitlab-ci.yml
+
+services:
+  - docker:24.0.6-dind
+
+unit_tests:
+  stage: test
+  script:
+    - echo "Running unit tests..."
+
+docker_build:
+  image: docker
+  services:
+    - docker:24.0.6-dind
+  stage: build
+  before_script:
+    - cp ${APP_ENV} .env
+    - cat .env
+  script:
+    - echo "Building Docker image..."
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+    - docker build . -t $CONTAINER_IMAGE -f docker/php/Dockerfile
+    - docker push $CONTAINER_IMAGE
+
+container_scanning:
+  variables:
+    CS_DEFAULT_BRANCH_IMAGE: $CI_REGISTRY_IMAGE/$CI_DEFAULT_BRANCH:$CI_COMMIT_SHA
+
+deploy_kubernetes:
+  image:
+    name: alpine/helm:3.12.3
+    entrypoint: ['']
+  stage: deploy
+  before_script:
+    - apk add --no-cache curl python3 py3-pip
+    - pip3 install awscli
+    - echo -n "$CI_JOB_TOKEN" | helm registry login -u gitlab-ci-token --password-stdin $CI_REGISTRY
+  script:
+    - aws eks update-kubeconfig --region us-east-1 --name $CLUSTER_NAME
+    - helm upgrade --install laravel-mysql-dev ./deploy --values=./deploy/values.yaml

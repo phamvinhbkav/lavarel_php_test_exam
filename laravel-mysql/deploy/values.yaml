@@ -1,0 +1,13 @@
+deployment:
+  name: laravel-mysql
+  image:
+    name: laravel-mysql
+    tag: latest
+    repositoryUrl: registry.gitlab.com/minhmv1
+    pullSecret: gitlab-token-auth
+service:
+  name: svc-laravel-mysql
+configMap: cfm-laravel-mysql 
+ingress:
+  name: laravel-mysql-ingress
+namespace: dev
